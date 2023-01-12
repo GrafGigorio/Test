@@ -1,0 +1,28 @@
+    private void addPodpiska(ServerContext serverContext, TvAccount tvAccount, int productId, int moduleId, String komment) {
+        try {
+            ServerContext serverContextLoc = ServerContext.get();
+            ProductService productService = serverContextLoc.getService(ProductService.class, 11);
+            ProductOrderService productOrderService = serverContext.getService(ProductOrderService.class, moduleId);
+
+            Date date = new Date(new Date().getTime() + 10000);
+
+            Product product = new Product();
+            product.setAccountId(tvAccount.getId());
+            product.setActivationModeId(productService.productSpecActivationModeList(productId, new Date()).get(0).getId());
+            product.setProductSpecId(productId);
+            product.setUserId(0);
+            product.setContractId(tvAccount.getContractId());
+            product.setComment("Добавлен автоматически "+komment);
+            product.setActivationTime(date);
+            product.setTimeFrom(date);
+            product.setDeviceState((short) 1);
+
+            productOrderService.productActivate(product, date, false, true);
+
+            TvAccountService service = serverContext.getService(TvAccountService.class, 11);
+            service.tvAccountUpdate(tvAccount.getContractId(), tvAccount, false, false, 10000);
+
+        } catch (BGException e) {
+            logger.info(">>>>>>>> ddd " + e);
+        }
+    }
