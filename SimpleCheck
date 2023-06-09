@@ -20,7 +20,7 @@ import ru.bitel.common.Utils;
  * Это пример, если вы хотите сделать свой шаблон - создайте рядом другой класс.
  * @author dimon
  */
-public class SimpleCheck
+public class SimpleCheck_Omiplat
         extends CheckMaker
 {
     /**
@@ -57,8 +57,9 @@ public class SimpleCheck
 
         check.setDocumentId(payment.getPaymentId());
         check.setDocumentDate(new Date());
+
         // продажная позиция
-        check.addPayment( payment.getSumma(), "Оплата " + payment.getContractTitle(), 0 );
+        check.addPayment( payment.getSumma(), "Пополнение счета по договору №" + payment.getContractTitle(), 0 );
         // с указанием PayMethod, PayObject, Tax для позиции
         // check.addPayment( payment.getSumma(), "Оплата " + payment.getContractTitle(), 0, 4, 4, 0 );
         // добавление атрибутов к позиции
@@ -116,10 +117,10 @@ public class SimpleCheck
         }
         */
 
-        /*
+
         // номер документа (для ряда фискализаторов)
         check.setDocumentId("p"+payment.getPaymentId());
-        */
+
     }
 
     @Override
