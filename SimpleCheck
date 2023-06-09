@@ -1,0 +1,175 @@
+package ru.bitel.bgbilling.modules.cashcheck.dyn;
+
+import java.sql.Connection;
+import java.util.Date;
+import java.util.Set;
+
+import ru.bitel.bgbilling.common.BGException;
+import ru.bitel.bgbilling.kernel.contract.api.common.bean.Contract;
+import ru.bitel.bgbilling.kernel.contract.api.server.bean.ContractDao;
+import ru.bitel.bgbilling.plugins.cashcheck.common.Payment;
+import ru.bitel.bgbilling.plugins.cashcheck.common.Printer;
+import ru.bitel.bgbilling.plugins.cashcheck.server.CashCheckUtils;
+import ru.bitel.bgbilling.plugins.cashcheck.server.CheckMaker;
+import ru.bitel.bgbilling.plugins.cashcheck.server.bean.Check;
+import ru.bitel.bgbilling.server.util.Setup;
+import ru.bitel.common.Utils;
+
+/**
+ * Какой-то простой формат чека для типичного ККТ.
+ * Это пример, если вы хотите сделать свой шаблон - создайте рядом другой класс.
+ * @author dimon
+ */
+public class SimpleCheck
+        extends CheckMaker
+{
+    /**
+     * [Настройки здесь]
+     * ид параметра с электронным адресом / телефоном, тип: текстовый, телефон, email
+     */
+    private int EMAIL_PARAM_ID = 666;
+
+    /**
+     * [Настройки здесь]
+     * дефолтный email если не задан нигде адрес
+     */
+    private String EMAIL_DEFAULT = "info@provider.ru";
+
+    private Connection con;
+
+    @Override
+    public void init( Setup setup, Connection con, Connection conSlave )
+            throws BGException
+    {
+        this.con = con;
+    }
+
+    @Override
+    public void addPayment( Payment payment, Check check, Printer printer )
+            throws BGException
+    {
+        int userId = payment.getUserId();
+
+        // получаем договор
+        ContractDao contractDao = new ContractDao(con, userId);
+        Contract contract = contractDao.get(payment.getContractId());
+        contractDao.close();
+
+        check.setDocumentId(payment.getPaymentId());
+        check.setDocumentDate(new Date());
+        // продажная позиция
+        check.addPayment( payment.getSumma(), "Оплата " + payment.getContractTitle(), 0 );
+        // с указанием PayMethod, PayObject, Tax для позиции
+        // check.addPayment( payment.getSumma(), "Оплата " + payment.getContractTitle(), 0, 4, 4, 0 );
+        // добавление атрибутов к позиции
+        // check.setLastPaymentTag(666, "tag");
+        check.addString( payment.getContractComment() );
+
+        // customerAddress
+        String customerEmail = CashCheckUtils.getEmailParam(con, contract.getId(), EMAIL_PARAM_ID);
+        if(Utils.isBlankString(customerEmail))
+        {
+            customerEmail = EMAIL_DEFAULT;
+        }
+        check.setCustomerEmail(customerEmail);
+
+        /*
+        // вариант получения email из значения вводимого в старом ЛК для каждой платёжной системы
+        ru.bitel.bgbilling.kernel.contract.config.server.bean.ContractModuleConfigDao contractModuleConfigDao = new ru.bitel.bgbilling.kernel.contract.config.server.bean.ContractModuleConfigDao( con, MID );
+        String customerEmail = contractModuleConfigDao.get( contract.getId(), "customerAddress" );
+        contractModuleConfigDao.close();
+        */
+
+        /*
+        // вариант получения email из "контактов" у сущности "клиент" договора.
+        String customerEmail = CashCheckUtils.getEmailCustomer(con, contract.getId());
+        */
+
+        // ставим ТИП ПЛАТЕЖА ККМ: зависит от фискализатора
+        check.setPaymentType(1);
+
+        // номер налога - зависит от фискализатора
+        check.setTax(0);
+
+        /*
+        // признаки способа и предмета расчёта, можно задавать и для позиции или по умолчанию в ККТ, возможно
+        // Номер для: Признак способа расчета: ... 4 Полная оплата, в том числе с учетом аванса
+        check.setPayMethod(4);
+        // 4 об оказываемой услуге (наименование и иные сведения, описывающие услугу) "УСЛУГА" или "У" или может не печататься
+        check.setPayObject(4);
+        */
+
+        /*
+        // фио/инн кассира используется в некоторых фискализаторах, в некоторых требуется
+        // для фиксированного кассира можно в коде здесь забить
+        // фио кассира из настроек (имя юзера или "cashcheck.name" из настроек юзера)
+        String cashierName = CashCheckUtils.getCashierName(con, userId);
+        if( cashierName != null )
+        {
+            check.setCashierName(cashierName);
+        }
+        // инн кассира из настроек ("cashcheck.inn" из настроек юзера)
+        String cashierInn = CashCheckUtils.getCashierInn(con, userId);
+        if( cashierInn != null )
+        {
+            check.setCashierINN(cashierInn);
+        }
+        */
+
+        /*
+        // номер документа (для ряда фискализаторов)
+        check.setDocumentId("p"+payment.getPaymentId());
+        */
+    }
+
+    @Override
+    public void endCreate( Set<Integer> cids, Check check, Printer printer )
+            throws BGException
+    {
+        check.addString( "Приходите ещё!" );
+    }
+
+    @Override
+    public void addPaymentRefund( Payment payment, Check check, Printer printer )
+            throws BGException
+    {
+        check.addPayment( payment.getSumma(), "Возврат " + payment.getContractTitle(), 0 );
+        // также здесь настраиваются атрибуты нужные, аналогично как в чеках продажи
+        check.setCustomerEmail(EMAIL_DEFAULT);
+		/*
+		// номер документа
+		check.setDocumentId("c"+payment.getPaymentId());
+		*/
+    }
+
+	/*
+	@Override
+	public void endCreateRefund( int cid, Check check, Printer printer )
+		throws BGException
+	{
+		check.addString( "Приходите ещё!" );
+	}
+	*/
+
+    @Override
+    public void addPaymentAuto(Payment payment, Check check, Printer printer)
+            throws BGException
+    {
+        // логика для автоплатежей такая же
+        addPayment( payment, check, printer );
+        // только ставим признак электронного чека
+        check.setOnlyElCheck(true);
+    }
+
+	/*
+	@Override
+	public void addPaymentAutoDelay( Payment payment, Check check, Printer printer )
+	    throws BGException
+	{
+	    // логика для delay-автоплатежей такая же
+        addPayment( payment, check, printer );
+        // только ставим признак электронного чека
+        check.setOnlyElCheck(true);
+    }
+    */
+}
